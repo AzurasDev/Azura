@@ -11,6 +11,5 @@ for i, v in pairs(hwidPaste) do
     loadstring(game:HttpGet("https://toldehub.github.io/Azura/Script.lua"))()
   else
     setclipboard(hwid)
-  })
   end
 end
