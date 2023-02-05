@@ -231,7 +231,7 @@ local walkspeedslider = mainSecetion:Slider{
     Min = 1,
     Max = 22,
     Float = 0.1,
-    Flag = "Slider 1",
+    Flag = "WalkSpeedslider",
     Callback = function(value)
         hum.WalkSpeed = value
     flags.speed = value
@@ -572,8 +572,8 @@ local ItemrEsp = espSecetion:Toggle{
             }
 
             local LockerEsp = espSecetion:Toggle{
-                Name = "Locker Esp",
-                Flag = "Locker Esp",
+                Name = "Locker/Clost Esp",
+                Flag = "LockerEsp",
                 --Default = true,
                 Callback  = function(val)
                     flags.esplocker = val
