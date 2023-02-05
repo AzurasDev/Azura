@@ -17,7 +17,7 @@ local watermark = library:Watermark("Azura | v1.0.0 | Release")
 
 
 local flags = {
-    speed = 0,
+    speed = 16,
     espdoors = false,
     espkeys = false,
     espitems = false,
