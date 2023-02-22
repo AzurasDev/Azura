@@ -1,117 +1,167 @@
-(function() {
-  var COLORS, Confetti, NUM_CONFETTI, PI_2, canvas, confetti, context, drawCircle, i, range, resizeWindow, xpos;
+var LeafScene = function(el) {
+    this.viewport = el;
+    this.world = document.createElement('div');
+    this.leaves = [];
 
-  NUM_CONFETTI = 350;
-
-  COLORS = [[85, 71, 106], [174, 61, 99], [219, 56, 83], [244, 92, 68], [248, 182, 70]];
-
-  PI_2 = 2 * Math.PI;
-
-  canvas = document.getElementById("world");
-
-  context = canvas.getContext("2d");
-
-  window.w = 0;
-
-  window.h = 0;
-
-  resizeWindow = function() {
-    window.w = canvas.width = window.innerWidth;
-    return window.h = canvas.height = window.innerHeight;
-  };
-
-  window.addEventListener('resize', resizeWindow, false);
-
-  window.onload = function() {
-    return setTimeout(resizeWindow, 0);
-  };
-
-  range = function(a, b) {
-    return (b - a) * Math.random() + a;
-  };
-
-  drawCircle = function(x, y, r, style) {
-    context.beginPath();
-    context.arc(x, y, r, 0, PI_2, false);
-    context.fillStyle = style;
-    return context.fill();
-  };
-
-  xpos = 0.5;
-
-  document.onmousemove = function(e) {
-    return xpos = e.pageX / w;
-  };
-
-  window.requestAnimationFrame = (function() {
-    return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame || function(callback) {
-      return window.setTimeout(callback, 1000 / 60);
-    };
-  })();
-
-  Confetti = (function() {
-    function Confetti() {
-      this.style = COLORS[~~range(0, 5)];
-      this.rgb = "rgba(" + this.style[0] + "," + this.style[1] + "," + this.style[2];
-      this.r = ~~range(2, 6);
-      this.r2 = 2 * this.r;
-      this.replace();
-    }
-
-    Confetti.prototype.replace = function() {
-      this.opacity = 0;
-      this.dop = 0.03 * range(1, 4);
-      this.x = range(-this.r2, w - this.r2);
-      this.y = range(-20, h - this.r2);
-      this.xmax = w - this.r;
-      this.ymax = h - this.r;
-      this.vx = range(0, 2) + 8 * xpos - 5;
-      return this.vy = 0.7 * this.r + range(-1, 1);
+    this.options = {
+      numLeaves: 20,
+      wind: {
+        magnitude: 1.2,
+        maxSpeed: 12,
+        duration: 300,
+        start: 0,
+        speed: 0
+      },
     };
 
-    Confetti.prototype.draw = function() {
-      var ref;
-      this.x += this.vx;
-      this.y += this.vy;
-      this.opacity += this.dop;
-      if (this.opacity > 1) {
-        this.opacity = 1;
-        this.dop *= -1;
+    this.width = this.viewport.offsetWidth;
+    this.height = this.viewport.offsetHeight;
+
+    // animation helper
+    this.timer = 0;
+
+    this._resetLeaf = function(leaf) {
+
+      // place leaf towards the top left
+      leaf.x = this.width * 2 - Math.random()*this.width*1.75;
+      leaf.y = -10;
+      leaf.z = Math.random()*200;
+      if (leaf.x > this.width) {
+        leaf.x = this.width + 10;
+        leaf.y = Math.random()*this.height/2;
       }
-      if (this.opacity < 0 || this.y > this.ymax) {
-        this.replace();
+      // at the start, the leaf can be anywhere
+      if (this.timer == 0) {
+        leaf.y = Math.random()*this.height;
       }
-      if (!((0 < (ref = this.x) && ref < this.xmax))) {
-        this.x = (this.x + this.xmax) % this.xmax;
+
+      // Choose axis of rotation.
+      // If axis is not X, chose a random static x-rotation for greater variability
+      leaf.rotation.speed = Math.random()*10;
+      var randomAxis = Math.random();
+      if (randomAxis > 0.5) {
+        leaf.rotation.axis = 'X';
+      } else if (randomAxis > 0.25) {
+        leaf.rotation.axis = 'Y';
+        leaf.rotation.x = Math.random()*180 + 90;
+      } else {
+        leaf.rotation.axis = 'Z';
+        leaf.rotation.x = Math.random()*360 - 180;
+        // looks weird if the rotation is too fast around this axis
+        leaf.rotation.speed = Math.random()*3;
       }
-      return drawCircle(~~this.x, ~~this.y, this.r, this.rgb + "," + this.opacity + ")");
+
+      // random speed
+      leaf.xSpeedVariation = Math.random() * 0.8 - 0.4;
+      leaf.ySpeed = Math.random() + 1.5;
+
+      return leaf;
+    }
+
+    this._updateLeaf = function(leaf) {
+      var leafWindSpeed = this.options.wind.speed(this.timer - this.options.wind.start, leaf.y);
+
+      var xSpeed = leafWindSpeed + leaf.xSpeedVariation;
+      leaf.x -= xSpeed;
+      leaf.y += leaf.ySpeed;
+      leaf.rotation.value += leaf.rotation.speed;
+
+      var t = 'translateX( ' + leaf.x + 'px ) translateY( ' + leaf.y + 'px ) translateZ( ' + leaf.z + 'px )  rotate' + leaf.rotation.axis + '( ' + leaf.rotation.value + 'deg )';
+      if (leaf.rotation.axis !== 'X') {
+        t += ' rotateX(' + leaf.rotation.x + 'deg)';
+      }
+      leaf.el.style.webkitTransform = t;
+      leaf.el.style.MozTransform = t;
+      leaf.el.style.oTransform = t;
+      leaf.el.style.transform = t;
+
+      // reset if out of view
+      if (leaf.x < -10 || leaf.y > this.height + 10) {
+        this._resetLeaf(leaf);
+      }
+    }
+
+    this._updateWind = function() {
+      // wind follows a sine curve: asin(b*time + c) + a
+      // where a = wind magnitude as a function of leaf position, b = wind.duration, c = offset
+      // wind duration should be related to wind magnitude, e.g. higher windspeed means longer gust duration
+
+      if (this.timer === 0 || this.timer > (this.options.wind.start + this.options.wind.duration)) {
+
+        this.options.wind.magnitude = Math.random() * this.options.wind.maxSpeed;
+        this.options.wind.duration = this.options.wind.magnitude * 50 + (Math.random() * 20 - 10);
+        this.options.wind.start = this.timer;
+
+        var screenHeight = this.height;
+
+        this.options.wind.speed = function(t, y) {
+          // should go from full wind speed at the top, to 1/2 speed at the bottom, using leaf Y
+          var a = this.magnitude/2 * (screenHeight - 2*y/3)/screenHeight;
+          return a * Math.sin(2*Math.PI/this.duration * t + (3 * Math.PI/2)) + a;
+        }
+      }
+    }
+  }
+
+  LeafScene.prototype.init = function() {
+
+    for (var i = 0; i < this.options.numLeaves; i++) {
+      var leaf = {
+        el: document.createElement('div'),
+        x: 0,
+        y: 0,
+        z: 0,
+        rotation: {
+          axis: 'X',
+          value: 0,
+          speed: 0,
+          x: 0
+        },
+        xSpeedVariation: 0,
+        ySpeed: 0,
+        path: {
+          type: 1,
+          start: 0,
+
+        },
+        image: 1
+      };
+      this._resetLeaf(leaf);
+      this.leaves.push(leaf);
+      this.world.appendChild(leaf.el);
+    }
+
+    this.world.className = 'leaf-scene';
+    this.viewport.appendChild(this.world);
+
+    // set perspective
+    this.world.style.webkitPerspective = "400px";
+    this.world.style.MozPerspective = "400px";
+    this.world.style.oPerspective = "400px";
+    this.world.style.perspective = "400px";
+    
+    // reset window height/width on resize
+    var self = this;
+    window.onresize = function(event) {
+      self.width = self.viewport.offsetWidth;
+      self.height = self.viewport.offsetHeight;
     };
+  }
 
-    return Confetti;
-
-  })();
-
-  confetti = (function() {
-    var j, ref, results;
-    results = [];
-    for (i = j = 1, ref = NUM_CONFETTI; 1 <= ref ? j <= ref : j >= ref; i = 1 <= ref ? ++j : --j) {
-      results.push(new Confetti);
+  LeafScene.prototype.render = function() {
+    this._updateWind();
+    for (var i = 0; i < this.leaves.length; i++) {
+      this._updateLeaf(this.leaves[i]);
     }
-    return results;
-  })();
 
-  window.step = function() {
-    var c, j, len, results;
-    requestAnimationFrame(step);
-    context.clearRect(0, 0, w, h);
-    results = [];
-    for (j = 0, len = confetti.length; j < len; j++) {
-      c = confetti[j];
-      results.push(c.draw());
-    }
-    return results;
-  };
+    this.timer++;
 
-  step();
+    requestAnimationFrame(this.render.bind(this));
+  }
 
-}).call(this);
+  // start up leaf scene
+  var leafContainer = document.querySelector('.falling-leaves'),
+      leaves = new LeafScene(leafContainer);
+
+  leaves.init();
+  leaves.render();
